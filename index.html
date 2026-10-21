@@ -2,15 +2,23 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <!-- 모바일 정배율 뷰포트 설정 (터치 확대 왜곡 방지) -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 모바일 정배율 뷰포트 설정 및 가상 키보드 지도 압축 방지 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=overlays-content">
     <title>ARDF 2D 코스 시뮬레이터</title>
     <!-- Mapbox GL JS -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: '맑은 고딕', sans-serif; display: flex; height: 100vh; overflow: hidden; background: #1a252f; }
+        body { 
+            margin: 0; 
+            font-family: '맑은 고딕', sans-serif; 
+            display: flex; 
+            height: 100vh; 
+            height: 100dvh; /* 모바일 브라우저 주소창/하단 툴바 변동 동적 반영 */
+            overflow: hidden; 
+            background: #1a252f; 
+        }
         
         /* 좌측 사이드바 */
         #sidebar { 
@@ -134,7 +142,16 @@
         .btn-tx-pick:hover { background: #34495e; color: #f1c40f; }
         .btn-tx-pick.active { background: #8e44ad; color: #fff; border-color: #9b59b6; box-shadow: 0 0 8px rgba(155,89,182,0.8); }
 
-        #tx-list-box { max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+        /* 송신기 리스트: 축소 및 내부 스크롤 격리 (부모 스크롤 먹통 방지) */
+        #tx-list-box { 
+            max-height: 110px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 5px; 
+            margin-top: 8px; 
+            overscroll-behavior: contain;
+        }
         .tx-list-item {
             display: flex; align-items: center; justify-content: space-between;
             background: #243342; padding: 5px 8px; border-radius: 4px; font-size: 0.75rem; border-left: 3px solid #9b59b6;
@@ -230,7 +247,7 @@
             letter-spacing: -0.2px;
         }
 
-        /* 2단 컴팩트 플레이어 컨트롤 바 (모바일 및 전 기기 대응) */
+        /* 2단 컴팩트 플레이어 컨트롤 바 */
         #player-bar {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(33, 47, 61, 0.96); backdrop-filter: blur(8px);
@@ -303,12 +320,15 @@
         }
         #btn-close-debrief:hover { background: #2ecc71; }
 
-        /* 모바일 미디어 쿼리 (화면 폭 768px 이하 최적화) */
-        @media (max-width: 768px) {
+        /* 모바일 및 태블릿 미디어 쿼리 (화면 폭 1024px 이하 최적화) */
+        @media (max-width: 1024px) {
             #sidebar {
                 position: fixed; top: 0; left: 0;
-                width: 85vw; min-width: unset; max-width: 310px;
+                width: 85vw; min-width: unset; max-width: 320px;
                 height: 100vh;
+                height: 100dvh;
+                padding-bottom: 70px; /* 송신기 추가 시 하단 슬라이더 잘림 방지 안전 여백 */
+                -webkit-overflow-scrolling: touch;
             }
             #sidebar.collapsed { margin-left: -100vw; }
             #sidebar.collapsed + #map-container #map-search-bar { left: 62px; }
@@ -320,7 +340,7 @@
             #style-switch-wrap { top: 12px; right: 12px; }
             #style-switch-wrap label { padding: 5px 8px; font-size: 0.68rem; }
 
-            #player-bar { bottom: 12px; padding: 6px 12px; gap: 5px; }
+            #player-bar { bottom: 16px; padding: 6px 12px; gap: 5px; max-width: 90vw; }
             #btn-play { width: 32px; height: 32px; font-size: 0.88rem; }
             #btn-audio-toggle { width: 30px; height: 30px; font-size: 0.8rem; }
             #speed-select { font-size: 0.72rem; padding: 3px 5px; }
@@ -644,8 +664,8 @@
             if (e.key === '[' || e.key === ']') toggleSidebar();
         });
 
-        // 모바일 접속 시 사이드바 기본 닫기
-        if (window.innerWidth <= 768) {
+        // 모바일 및 태블릿 접속 시 사이드바 기본 닫기 (넓은 지도 뷰 확보)
+        if (window.innerWidth <= 1024) {
             toggleSidebar(true);
         }
 
