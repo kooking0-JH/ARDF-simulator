@@ -412,12 +412,12 @@
             <div id="tx-list-box"></div>
         </div>
 
-        <!-- 4. 2D 지형 음영 입체감 -->
+        <!-- 4. 2D 지형 음영 입체감 (기본 디폴트 20% 설정) -->
         <div class="control-group">
             <label class="section-title">4. 2D 지형 음영 입체감</label>
             <div class="slider-wrap">
-                <input type="range" id="hillshade-slider" min="0.2" max="1.0" step="0.05" value="0.95">
-                <span class="slider-value" id="hillshade-val">95%</span>
+                <input type="range" id="hillshade-slider" min="0.2" max="1.0" step="0.05" value="0.2">
+                <span class="slider-value" id="hillshade-val">20%</span>
             </div>
         </div>
     </div>
@@ -553,12 +553,13 @@
             });
             map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.0 });
 
+            // 2D 지형 음영 입체감: 기본 디폴트 20%(0.2) 적용
             map.addLayer({
                 'id': 'terrain-hillshade',
                 'type': 'hillshade',
                 'source': 'mapbox-dem',
                 'paint': {
-                    'hillshade-exaggeration': 0.95,
+                    'hillshade-exaggeration': 0.2,
                     'hillshade-shadow-color': '#111a22',
                     'hillshade-highlight-color': '#ffffff',
                     'hillshade-illumination-direction': 315
