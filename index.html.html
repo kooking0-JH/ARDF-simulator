@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>ARDF 2D 정밀 코스 시뮬레이터</title>
+    <!-- Mapbox GL JS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: '맑은 고딕', sans-serif; display: flex; height: 100vh; overflow: hidden; background: #1a252f; }
+        
+        /* 좌측 사이드바 */
+        #sidebar { 
+            width: 330px; min-width: 330px;
+            background: #2c3e50; color: #ecf0f1; 
+            padding: 18px; display: flex; flex-direction: column; 
+            gap: 12px; box-shadow: 4px 0 16px rgba(0,0,0,0.4);
+            z-index: 20; overflow-y: auto;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+        #sidebar.collapsed { margin-left: -330px; }
+
+        #sidebar::-webkit-scrollbar,
+        #tx-list-box::-webkit-scrollbar { width: 5px; }
+        #sidebar::-webkit-scrollbar-track,
+        #tx-list-box::-webkit-scrollbar-track { background: transparent; }
+        #sidebar::-webkit-scrollbar-thumb,
+        #tx-list-box::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2); border-radius: 4px;
+        }
+        #sidebar::-webkit-scrollbar-thumb:hover { background: #e74c3c !important; }
+
+        .sidebar-header {
+            position: sticky; top: -18px; background: #2c3e50; z-index: 30;
+            margin: -18px -18px 4px -18px; padding: 18px 18px 10px 18px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #34495e;
+        }
+        .sidebar-header h2 { margin: 0; font-size: 1.15rem; color: #fff; letter-spacing: -0.5px; }
+        #btn-sidebar-close {
+            background: #243342; border: 1px solid #7f8c8d; color: #bdc3c7;
+            width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+            font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        #btn-sidebar-close:hover { background: #e74c3c; color: #ffffff; border-color: #ffffff; }
+
+        #btn-menu-open {
+            position: absolute; top: 16px; left: 16px; width: 42px; height: 42px;
+            background: #243342; border: 2px solid #7f8c8d; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); cursor: pointer; z-index: 10;
+            display: none; align-items: center; justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #btn-menu-open:hover { background: #e74c3c; border-color: #ffffff; transform: scale(1.06); }
+
+        #map-search-bar {
+            position: absolute; top: 16px; left: 16px; display: flex; align-items: center;
+            z-index: 10; background: #ffffff; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.22); border: 1px solid rgba(0,0,0,0.1);
+            overflow: hidden; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #sidebar.collapsed + #map-container #map-search-bar { left: 68px; }
+        #map-search-input {
+            width: 220px; padding: 8px 12px; border: none; background: transparent;
+            color: #2c3e50; font-size: 0.85rem; outline: none;
+        }
+        #map-search-input::placeholder { color: #95a5a6; font-size: 0.8rem; }
+        #btn-map-search {
+            background: transparent; color: #7f8c8d; border: none; padding: 8px 12px;
+            cursor: pointer; font-size: 0.95rem; font-weight: bold;
+        }
+        #btn-map-search:hover { color: #e74c3c; background: #f8f9fa; }
+
+        #style-switch-wrap {
+            position: absolute; top: 16px; right: 16px; z-index: 15; display: flex;
+            background: rgba(36, 51, 66, 0.92); backdrop-filter: blur(6px);
+            border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.15);
+            overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+        }
+        #style-switch-wrap input[type="radio"] { display: none; }
+        #style-switch-wrap label {
+            padding: 6px 12px; font-size: 0.76rem; font-weight: bold; color: #bdc3c7;
+            cursor: pointer; transition: all 0.2s; border-right: 1px solid rgba(255, 255, 255, 0.08);
+            user-select: none;
+        }
+        #style-switch-wrap label:last-child { border-right: none; }
+        #style-switch-wrap input[type="radio"]:checked + label { background: #e74c3c; color: #ffffff; }
+
+        .control-group { background: #34495e; padding: 12px 14px; border-radius: 8px; }
+        label.section-title { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem; color: #bdc3c7; }
+        select, input[type="file"], input[type="text"] { width: 100%; padding: 7px 9px; border-radius: 4px; border: 1px solid #7f8c8d; background: #fff; color: #333; font-size: 0.85rem; }
+
+        /* 1번 경기 종목 & 주파수 대역 */
+        .mode-switch { display: flex; background: #243342; border-radius: 4px; border: 1px solid #7f8c8d; overflow: hidden; }
+        .mode-switch input[type="radio"] { display: none; }
+        .mode-switch label { 
+            flex: 1; text-align: center; padding: 7px 0; cursor: pointer;
+            font-size: 0.78rem; color: #bdc3c7; transition: all 0.2s;
+        }
+        .mode-switch input[type="radio"]:checked + label { background: #e67e22; color: white; font-weight: bold; }
+        .mode-switch input[type="radio"]:disabled + label { opacity: 0.35; cursor: not-allowed; }
+
+        .antenna-spec-badge {
+            margin-top: 6px; font-size: 0.72rem; color: #f1c40f; background: #243342;
+            padding: 6px 9px; border-radius: 4px; border-left: 3px solid #f1c40f;
+            line-height: 1.45;
+        }
+
+        .badge-sim-active {
+            background: #27ae60; color: #fff; font-size: 0.68rem; font-weight: 800;
+            padding: 2px 8px; border-radius: 10px; box-shadow: 0 0 8px rgba(39,174,96,0.6);
+        }
+        .badge-sim-wait { background: #7f8c8d; color: #fff; font-size: 0.68rem; font-weight: bold; padding: 2px 7px; border-radius: 10px; }
+
+        .btn-del-item {
+            background: #c0392b; color: white; border: none; width: 20px; height: 20px;
+            border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn-del-item:hover { background: #e74c3c; }
+
+        .tx-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; }
+        .btn-tx-pick {
+            background: #243342; color: #ecf0f1; border: 1px solid #7f8c8d;
+            border-radius: 4px; padding: 7px 0; font-size: 0.76rem; font-weight: bold;
+            cursor: pointer; transition: all 0.2s; text-align: center;
+        }
+        .btn-tx-pick:hover { background: #34495e; color: #f1c40f; }
+        .btn-tx-pick.active { background: #8e44ad; color: #fff; border-color: #9b59b6; box-shadow: 0 0 8px rgba(155,89,182,0.8); }
+
+        #tx-list-box { max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+        .tx-list-item {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #243342; padding: 5px 8px; border-radius: 4px; font-size: 0.75rem; border-left: 3px solid #9b59b6;
+        }
+
+        .slider-wrap { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+        .slider-wrap input[type="range"] { flex-grow: 1; cursor: pointer; }
+        .slider-value { width: 45px; text-align: right; font-weight: bold; color: #e67e22; font-size: 0.82rem; }
+
+        #map-container { flex-grow: 1; height: 100%; position: relative; }
+
+        #guide-banner {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(26, 37, 47, 0.96); color: #ffffff; padding: 8px 18px;
+            border-radius: 30px; font-size: 0.9rem; font-weight: 800; box-shadow: 0 8px 25px rgba(0,0,0,0.55);
+            z-index: 100; display: none; align-items: center; gap: 10px; border: 2px solid #f39c12;
+        }
+        #btn-cancel-guide {
+            background: #c0392b; border: none; color: white; padding: 4px 12px;
+            border-radius: 12px; cursor: pointer; font-size: 0.8rem; font-weight: bold;
+        }
+
+        /* 0x0 앵커 래퍼 & IOF 표준 마커 */
+        .marker-anchor-wrap { width: 0 !important; height: 0 !important; position: relative !important; cursor: grab; }
+        .marker-anchor-wrap:active { cursor: grabbing; }
+
+        .iof-tx-marker {
+            position: absolute; top: 0; left: 0; transform: translate(-50%, -50%);
+            width: 26px; height: 26px; border-radius: 50%; background: rgba(142, 68, 173, 0.95);
+            border: 2.5px solid #ffffff; color: #ffffff; font-weight: 900; font-size: 11px;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+            user-select: none; pointer-events: auto; transition: opacity 0.2s, transform 0.2s;
+        }
+        /* 블라인드 숨김 상태 */
+        .iof-tx-marker.tx-blind-hidden {
+            display: none !important; opacity: 0 !important; pointer-events: none !important;
+        }
+        /* 찾은 폭스: 선명한 녹색 점등 */
+        .iof-tx-marker.tx-punched {
+            display: flex !important; opacity: 1 !important; pointer-events: auto !important;
+            transform: translate(-50%, -50%) scale(1.18) !important;
+            border: 2.8px solid #ffffff !important;
+            box-shadow: 0 0 18px #2ecc71, 0 3px 8px rgba(0,0,0,0.8) !important;
+            background: #27ae60 !important;
+            z-index: 40 !important;
+        }
+
+        .iof-start-marker {
+            position: absolute; top: 0; left: 0; transform: translate(-50%, -50%);
+            width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+            user-select: none; pointer-events: auto;
+        }
+        .iof-start-marker-inner {
+            width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent;
+            border-bottom: 22px solid #8e44ad; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.7));
+        }
+
+        .iof-finish-marker {
+            position: absolute; top: 0; left: 0; transform: translate(-50%, -50%);
+            width: 28px; height: 28px; border-radius: 50%; border: 2.5px solid #ffffff; background: transparent;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.7);
+            user-select: none; pointer-events: auto;
+        }
+        .iof-finish-marker-inner {
+            width: 14px; height: 14px; border-radius: 50%; background: #8e44ad; border: 2px solid #ffffff;
+        }
+
+        /* 러너 마커 & [초슬림 1줄 캡슐 배지] */
+        .runner-anchor-wrap { width: 0 !important; height: 0 !important; position: relative !important; }
+        .runner-marker {
+            position: absolute; top: 0; left: 0; transform: translate(-50%, -50%);
+            width: 22px; height: 22px; border-radius: 50%; background: #00cec9;
+            border: 2.2px solid #ffffff; box-shadow: 0 0 14px #00cec9; display: flex; align-items: center; justify-content: center;
+            z-index: 50;
+        }
+        .runner-marker-arrow {
+            width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent;
+            border-bottom: 10px solid #ffffff; transform-origin: center 6.5px;
+        }
+
+        .runner-tactical-badge {
+            position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 28, 38, 0.94); border: 1.5px solid #f39c12;
+            border-radius: 12px; padding: 2px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+            color: #ffffff; pointer-events: none; white-space: nowrap; z-index: 100;
+            font-size: 0.72rem; font-weight: 800; display: none; align-items: center; gap: 4px;
+            letter-spacing: -0.2px;
+        }
+
+        /* 하단 컴팩트 플레이어 컨트롤 바 */
+        #player-bar {
+            position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+            background: rgba(33, 47, 61, 0.96); backdrop-filter: blur(8px);
+            padding: 7px 18px; border-radius: 35px; display: none; align-items: center; gap: 10px;
+            color: #ecf0f1; box-shadow: 0 8px 25px rgba(0,0,0,0.5); z-index: 15;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        #btn-play {
+            background: #e74c3c; color: white; border: none; width: 34px; height: 34px;
+            border-radius: 50%; font-size: 0.95rem; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; transition: transform 0.15s;
+        }
+        #btn-play:hover { transform: scale(1.06); }
+        #btn-audio-toggle {
+            background: #243342; border: 1px solid #7f8c8d; color: #ecf0f1; width: 32px; height: 32px;
+            border-radius: 50%; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
+        }
+        #btn-audio-toggle.muted { background: #7f8c8d; color: #bdc3c7; }
+        #sim-time-text { font-family: monospace; font-size: 0.88rem; font-weight: bold; width: 48px; text-align: center; color: #f1c40f; }
+        #player-tx-badge {
+            background: #243342; border: 1px solid #7f8c8d; border-radius: 12px;
+            padding: 3px 9px; font-size: 0.75rem; font-weight: bold; color: #e74c3c;
+            white-space: nowrap; display: flex; align-items: center; gap: 4px;
+        }
+        #punch-hud-strip {
+            display: flex; align-items: center; gap: 4px; background: #243342;
+            padding: 3px 8px; border-radius: 12px; border: 1px solid #7f8c8d;
+        }
+        .punch-hud-item {
+            font-size: 0.7rem; font-weight: 800; padding: 1px 5px; border-radius: 8px;
+            background: #34495e; color: #95a5a6; transition: all 0.2s;
+        }
+        .punch-hud-item.punched {
+            background: #27ae60; color: #ffffff; box-shadow: 0 0 6px rgba(46,204,113,0.8);
+        }
+        #timeline { width: 200px; cursor: pointer; accent-color: #e74c3c; }
+        #speed-select {
+            background: #243342; color: white; border: 1px solid #7f8c8d;
+            border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer;
+        }
+
+        /* 디브리핑 리포트 모달 */
+        #debrief-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(26, 37, 47, 0.98); border: 2px solid #2ecc71; border-radius: 12px;
+            width: 440px; max-width: 90vw; padding: 22px; color: #ecf0f1; z-index: 200;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8); display: none; flex-direction: column; gap: 14px;
+            backdrop-filter: blur(10px);
+        }
+        .debrief-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #34495e; padding-bottom: 10px; }
+        .debrief-header h3 { margin: 0; color: #2ecc71; font-size: 1.15rem; }
+        .debrief-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+        .debrief-card { background: #243342; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid rgba(255,255,255,0.08); }
+        .debrief-card .val { font-size: 1.15rem; font-weight: 900; color: #f1c40f; margin-top: 3px; }
+        .debrief-card .lbl { font-size: 0.72rem; color: #bdc3c7; }
+        .debrief-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; margin-top: 6px; }
+        .debrief-table th, .debrief-table td { padding: 6px; text-align: center; border-bottom: 1px solid #34495e; }
+        .debrief-table th { background: #243342; color: #bdc3c7; }
+        #btn-close-debrief {
+            background: #27ae60; color: white; border: none; padding: 9px; border-radius: 6px;
+            font-weight: bold; cursor: pointer; margin-top: 6px; font-size: 0.88rem;
+        }
+        #btn-close-debrief:hover { background: #2ecc71; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h2>ARDF 2D 정밀 시뮬레이터</h2>
+            <button id="btn-sidebar-close" title="사이드바 닫기 (단축키: [)">✕</button>
+        </div>
+        
+        <!-- 1. 경기 종목 & 주파수 대역 -->
+        <div class="control-group">
+            <label class="section-title">1. 경기 종목 & 주파수 대역</label>
+            <select id="race-type" style="margin-bottom: 8px;">
+                <option value="classic">Classic 경기 (정격 1~5W)</option>
+                <option value="foxoring">Foxoring (10mW 극소출력 / 3.5MHz 전용)</option>
+                <option value="sprint">Sprint (0.5W 중저출력 / 3.5MHz 전용)</option>
+            </select>
+            <div class="mode-switch">
+                <input type="radio" id="band-2m" name="freq-band" value="2m" checked>
+                <label for="band-2m">2m (144MHz)</label>
+                <input type="radio" id="band-80m" name="freq-band" value="80m">
+                <label for="band-80m">80m (3.5MHz)</label>
+            </div>
+            <div class="antenna-spec-badge" id="antenna-badge">
+                🎯 <b>수신 안테나:</b> 144MHz 3-Element Yagi (수평편파)<br>
+                • E-Plane 빔폭: 약 60° | 전후방비(F/B): ~18dB 감쇄<br>
+                • 송신기 출력: 1.0W (Classic 전역 가청) | λ: 2.07m
+            </div>
+        </div>
+
+        <!-- 2. 경기 지도 오버레이 -->
+        <div class="control-group">
+            <label class="section-title" for="map-upload">2. 경기 지도 오버레이</label>
+            <input type="file" id="map-upload" accept="image/jpeg, image/png">
+            <div class="slider-wrap" id="map-opacity-wrap" style="display: none; margin-top: 8px;">
+                <span style="font-size: 0.75rem; color: #bdc3c7;">지도 투명도</span>
+                <input type="range" id="map-opacity-slider" min="0.1" max="1.0" step="0.05" value="0.75">
+                <span class="slider-value" id="map-opacity-val">75%</span>
+            </div>
+        </div>
+
+        <!-- 3. 송신기(TX) 위치 지정 -->
+        <div class="control-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="section-title" style="margin-bottom: 0;">3. 송신기(TX) 위치 지정</label>
+                <span id="tx-sim-badge" class="badge-sim-wait">시뮬레이션 대기</span>
+            </div>
+
+            <div id="tx-sim-summary" style="display: none; font-size: 0.73rem; color: #f1c40f; background: #243342; padding: 6px 9px; border-radius: 4px; margin-bottom: 6px; border-left: 3px solid #f1c40f;">
+                📡 송신 순서: 대기 중
+            </div>
+
+            <div class="tx-grid" id="tx-dynamic-grid"></div>
+            
+            <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <input type="text" id="tx-manual-input" placeholder="위도, 경도 직접 입력">
+                <button id="btn-tx-manual" style="width: 52px; background: #34495e; color: #fff; border: 1px solid #7f8c8d; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold;">등록</button>
+            </div>
+            
+            <div id="tx-list-box"></div>
+        </div>
+
+        <!-- 4. 2D 지형 음영 입체감 -->
+        <div class="control-group">
+            <label class="section-title">4. 2D 지형 음영 입체감</label>
+            <div class="slider-wrap">
+                <input type="range" id="hillshade-slider" min="0.2" max="1.0" step="0.05" value="0.95">
+                <span class="slider-value" id="hillshade-val">95%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 중앙 지도 영역 -->
+    <div id="map-container">
+        <button id="btn-menu-open" title="메뉴 열기 [단축키: []" aria-label="메뉴 열기">
+            <svg width="20" height="16" viewBox="0 0 20 16" fill="none"><rect width="20" height="2.8" rx="1.4" fill="#ffffff"/><rect y="6.6" width="20" height="2.8" rx="1.4" fill="#ffffff"/><rect y="13.2" width="20" height="2.8" rx="1.4" fill="#ffffff"/></svg>
+        </button>
+
+        <div id="map-search-bar">
+            <input type="text" id="map-search-input" placeholder="경기장 명칭 또는 위도, 경도 입력">
+            <button id="btn-map-search" title="검색">🔍</button>
+        </div>
+
+        <div id="style-switch-wrap">
+            <input type="radio" id="style-topo" name="map-style" value="topo" checked>
+            <label for="style-topo">등고 2D</label>
+            <input type="radio" id="style-sat" name="map-style" value="sat">
+            <label for="style-sat">위성 2D</label>
+        </div>
+
+        <div id="guide-banner">
+            <span id="guide-text">안내 메시지</span>
+            <button id="btn-cancel-guide">취소</button>
+        </div>
+
+        <!-- 하단 플레이어 컨트롤 바 -->
+        <div id="player-bar">
+            <button id="btn-play">▶</button>
+            <button id="btn-audio-toggle" title="수신음 켜기/끄기">🔊</button>
+            <span id="sim-time-text">00:00</span>
+            <div id="player-tx-badge">● TX 대기</div>
+            <!-- 실시간 펀칭 현황 스트립 -->
+            <div id="punch-hud-strip"></div>
+            <input type="range" id="timeline" min="0" max="1000" value="0" step="1">
+            <select id="speed-select">
+                <option value="1">1x</option>
+                <option value="5">5x</option>
+                <option value="10" selected>10x</option>
+                <option value="25">25x</option>
+                <option value="50">50x</option>
+            </select>
+        </div>
+
+        <!-- 경기 종료 디브리핑 리포트 모달 -->
+        <div id="debrief-modal">
+            <div class="debrief-header">
+                <h3>🏁 경기 분석 및 디브리핑 리포트</h3>
+            </div>
+            <div class="debrief-grid">
+                <div class="debrief-card">
+                    <div class="lbl">총 소요 시간</div>
+                    <div class="val" id="db-time">00:00</div>
+                </div>
+                <div class="debrief-card">
+                    <div class="lbl">실제 주행 거리</div>
+                    <div class="val" id="db-dist">0.0 km</div>
+                </div>
+                <div class="debrief-card">
+                    <div class="lbl">평균 페이스</div>
+                    <div class="val" id="db-pace">0'00" /km</div>
+                </div>
+                <div class="debrief-card">
+                    <div class="lbl">선택 종목 / 출력 / 안테나</div>
+                    <div class="val" style="font-size:0.8rem;" id="db-band">Classic (1W) / 144MHz</div>
+                </div>
+            </div>
+            
+            <table class="debrief-table">
+                <thead>
+                    <tr><th>공략 순서</th><th>표적</th><th>펀칭 시각</th><th>구간 스플릿</th><th>삼각측량 오차</th></tr>
+                </thead>
+                <tbody id="db-split-body"></tbody>
+            </table>
+
+            <button id="btn-close-debrief">리포트 닫기</button>
+        </div>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1Ijoia29va2luZzAiLCJhIjoiY212ZXBiZjNkMDBuMjJ5cHZ6bHQwZTg3ciJ9.11OKHXg95xnoPWWjipcqYA';
+
+        const MORSE_MAP = { '1': 'MOE', '2': 'MOI', '3': 'MOS', '4': 'MOH', '5': 'MO5', 'B': 'MO', 'S': 'START', 'F': 'FINISH' };
+        
+        const TX_COLORS = { 
+            '1': '#e74c3c',
+            '2': '#2980b9',
+            '3': '#8e44ad',
+            '4': '#e67e22',
+            '5': '#16a085',
+            'B': '#d35400'
+        };
+
+        const map = new mapboxgl.Map({
+            container: 'map-container',
+            style: 'mapbox://styles/mapbox/outdoors-v12',
+            center: [127.135, 35.852],
+            zoom: 14.5,
+            pitch: 0,
+            bearing: 0,
+            maxPitch: 0,
+            dragRotate: false,
+            pitchWithRotate: false,
+            touchPitch: false
+        });
+
+        function setMapLanguageToKorean() {
+            try {
+                const layers = map.getStyle().layers;
+                if (!layers) return;
+                layers.forEach(layer => {
+                    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+                        map.setLayoutProperty(layer.id, 'text-field', [
+                            'coalesce', ['get', 'name_ko'], ['get', 'name:ko'], ['get', 'name'], ['get', 'name_en']
+                        ]);
+                    }
+                });
+            } catch (err) {}
+        }
+
+        map.on('style.load', () => {
+            setMapLanguageToKorean();
+
+            map.addSource('mapbox-dem', {
+                'type': 'raster-dem',
+                'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                'tileSize': 512,
+                'maxzoom': 14
+            });
+            map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.0 });
+
+            map.addLayer({
+                'id': 'terrain-hillshade',
+                'type': 'hillshade',
+                'source': 'mapbox-dem',
+                'paint': {
+                    'hillshade-exaggeration': 0.95,
+                    'hillshade-shadow-color': '#111a22',
+                    'hillshade-highlight-color': '#ffffff',
+                    'hillshade-illumination-direction': 315
+                }
+            });
+
+            map.addSource('satellite-source', {
+                'type': 'raster',
+                'url': 'mapbox://mapbox.satellite',
+                'tileSize': 512
+            });
+            map.addLayer({
+                'id': 'satellite-layer',
+                'type': 'raster',
+                'source': 'satellite-source',
+                'layout': { 'visibility': 'none' },
+                'paint': { 'raster-opacity': 0.92 }
+            }, 'terrain-hillshade');
+
+            map.addSource('course-track-source', {
+                'type': 'geojson',
+                'data': { 'type': 'FeatureCollection', 'features': [] }
+            });
+            map.addLayer({
+                'id': 'course-track-layer',
+                'type': 'line',
+                'source': 'course-track-source',
+                'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                'paint': {
+                    'line-color': '#f39c12',
+                    'line-width': 2.8,
+                    'line-dasharray': [3, 2],
+                    'line-opacity': 0.85
+                }
+            });
+
+            map.addSource('bearing-history-source', {
+                'type': 'geojson',
+                'data': { 'type': 'FeatureCollection', 'features': [] }
+            });
+            map.addLayer({
+                'id': 'bearing-history-layer',
+                'type': 'line',
+                'source': 'bearing-history-source',
+                'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                'paint': {
+                    'line-color': ['get', 'color'],
+                    'line-width': 2.2,
+                    'line-dasharray': [4, 2],
+                    'line-opacity': ['get', 'opacity']
+                }
+            });
+
+            map.addSource('bearing-tails-source', {
+                'type': 'geojson',
+                'data': { 'type': 'FeatureCollection', 'features': [] }
+            });
+            map.addLayer({
+                'id': 'bearing-tails-circle',
+                'type': 'circle',
+                'source': 'bearing-tails-source',
+                'paint': {
+                    'circle-radius': 9,
+                    'circle-color': ['get', 'color'],
+                    'circle-stroke-width': 1.8,
+                    'circle-stroke-color': '#ffffff'
+                }
+            });
+            map.addLayer({
+                'id': 'bearing-tails-label',
+                'type': 'symbol',
+                'source': 'bearing-tails-source',
+                'layout': {
+                    'text-field': ['get', 'label'],
+                    'text-size': 11,
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    'text-allow-overlap': true,
+                    'text-ignore-placement': true
+                },
+                'paint': { 'text-color': '#ffffff' }
+            });
+        });
+
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
+
+        // 사이드바 토글
+        const sidebar = document.getElementById('sidebar');
+        const btnSidebarClose = document.getElementById('btn-sidebar-close');
+        const btnMenuOpen = document.getElementById('btn-menu-open');
+
+        function toggleSidebar(forceCollapse) {
+            const willCollapse = (typeof forceCollapse === 'boolean') ? forceCollapse : !sidebar.classList.contains('collapsed');
+            sidebar.classList.toggle('collapsed', willCollapse);
+            btnMenuOpen.style.display = willCollapse ? 'flex' : 'none';
+            setTimeout(() => map.resize(), 320);
+        }
+
+        btnSidebarClose.addEventListener('click', () => toggleSidebar(true));
+        btnMenuOpen.addEventListener('click', () => toggleSidebar(false));
+
+        window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+            if (e.key === '[' || e.key === ']') toggleSidebar();
+        });
+
+        // 1번 경기 종목 & 주파수 대역 핸들러
+        const raceTypeSelect = document.getElementById('race-type');
+        const band2mRadio = document.getElementById('band-2m');
+        const band80mRadio = document.getElementById('band-80m');
+        const antennaBadge = document.getElementById('antenna-badge');
+
+        function updateSpecBadge() {
+            const race = raceTypeSelect.value;
+            const is2m = band2mRadio.checked;
+
+            if (race === 'foxoring') {
+                band80mRadio.checked = true;
+                band2mRadio.disabled = true;
+                antennaBadge.innerHTML = `🎯 <b>종목:</b> Foxoring (3.5MHz 전용)<br>• 송신기 출력: <b>10mW 극소출력</b> (반경 30m 가청 / 250m 완전 차단)<br>• 안테나: 3.5MHz 페라이트 코어 바 안테나 (연속 발신)`;
+            } else if (race === 'sprint') {
+                band80mRadio.checked = true;
+                band2mRadio.disabled = true;
+                antennaBadge.innerHTML = `🎯 <b>종목:</b> Sprint (3.5MHz 전용)<br>• 송신기 출력: <b>0.5W 중저출력</b> (12초 고속 사이클)<br>• 안테나: 3.5MHz 페라이트 코어 바 안테나`;
+            } else {
+                band2mRadio.disabled = false;
+                if (is2m) {
+                    antennaBadge.innerHTML = `🎯 <b>종목:</b> Classic 경기<br>• 수신 안테나: 144MHz 3-Element Yagi (수평편파 / E-Plane ~60°)<br>• 송신기 출력: <b>1.0W 정격 출력</b> (전역 가청) | λ: 2.07m`;
+                } else {
+                    antennaBadge.innerHTML = `🎯 <b>종목:</b> Classic 경기<br>• 수신 안테나: 3.5MHz 페라이트 바 안테나 (수직편파 / 8자 Null 탐색)<br>• 송신기 출력: <b>3.0W 정격 출력</b> (전역 가청) | λ: 85.7m`;
+                }
+            }
+        }
+
+        raceTypeSelect.addEventListener('change', updateSpecBadge);
+        document.querySelectorAll('input[name="freq-band"]').forEach(r => r.addEventListener('change', updateSpecBadge));
+
+        const hillSlider = document.getElementById('hillshade-slider');
+        const hillVal = document.getElementById('hillshade-val');
+        hillSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            hillVal.textContent = Math.round(val * 100) + '%';
+            if (map.getLayer('terrain-hillshade')) {
+                map.setPaintProperty('terrain-hillshade', 'hillshade-exaggeration', val);
+            }
+        });
+
+        document.getElementById('style-switch-wrap').addEventListener('change', (e) => {
+            if (e.target.value === 'topo') {
+                if (map.getLayer('satellite-layer')) map.setLayoutProperty('satellite-layer', 'visibility', 'none');
+            } else if (e.target.value === 'sat') {
+                if (map.getLayer('satellite-layer')) map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
+            }
+        });
+
+        // 지도 오버레이
+        const mapUploadInput = document.getElementById('map-upload');
+        const mapOpacityWrap = document.getElementById('map-opacity-wrap');
+        const mapOpacitySlider = document.getElementById('map-opacity-slider');
+        const mapOpacityVal = document.getElementById('map-opacity-val');
+
+        mapUploadInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imgUrl = event.target.result;
+                const bounds = map.getBounds();
+                const coords = [
+                    [bounds.getWest(), bounds.getNorth()],
+                    [bounds.getEast(), bounds.getNorth()],
+                    [bounds.getEast(), bounds.getSouth()],
+                    [bounds.getWest(), bounds.getSouth()]
+                ];
+
+                if (map.getSource('custom-race-map')) {
+                    map.removeLayer('custom-race-map-layer');
+                    map.removeSource('custom-race-map');
+                }
+
+                map.addSource('custom-race-map', {
+                    'type': 'image',
+                    'url': imgUrl,
+                    'coordinates': coords
+                });
+
+                map.addLayer({
+                    'id': 'custom-race-map-layer',
+                    'type': 'raster',
+                    'source': 'custom-race-map',
+                    'paint': { 'raster-opacity': parseFloat(mapOpacitySlider.value) }
+                });
+
+                mapOpacityWrap.style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        mapOpacitySlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            mapOpacityVal.textContent = Math.round(val * 100) + '%';
+            if (map.getLayer('custom-race-map-layer')) {
+                map.setPaintProperty('custom-race-map-layer', 'raster-opacity', val);
+            }
+        });
+
+        // ==============================================================
+        // [Web Audio API] 실전 모스 부호 사운드 엔진
+        // ==============================================================
+        class ARDFMorseAudio {
+            constructor() {
+                this.ctx = null;
+                this.osc = null;
+                this.gainNode = null;
+                this.isMuted = false;
+                this.seqTimer = null;
+                this.targetVolume = 0;
+            }
+            init() {
+                if (this.ctx) return;
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioCtx();
+
+                this.gainNode = this.ctx.createGain();
+                this.gainNode.gain.value = 0;
+                this.gainNode.connect(this.ctx.destination);
+
+                this.osc = this.ctx.createOscillator();
+                this.osc.type = 'sine';
+                this.osc.frequency.value = 750;
+                this.osc.connect(this.gainNode);
+                this.osc.start();
+            }
+            setTargetVolume(vol) {
+                this.targetVolume = this.isMuted ? 0 : Math.max(0, Math.min(0.28, vol));
+            }
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                return this.isMuted;
+            }
+            startMorseLoop(txKey) {
+                if (this.currentLoopTx === txKey && this.isLooping) return;
+                this.currentLoopTx = txKey;
+                this.isLooping = true;
+                clearTimeout(this.seqTimer);
+
+                const DIT = 80, DAH = 240, S_GAP = 80, C_GAP = 240;
+                let pattern = [DAH, S_GAP, DAH, C_GAP, DAH, S_GAP, DAH, S_GAP, DAH, C_GAP];
+                const num = parseInt(txKey);
+                if (!isNaN(num) && num >= 1 && num <= 5) {
+                    for (let i = 0; i < num; i++) {
+                        pattern.push(DIT);
+                        if (i < num - 1) pattern.push(S_GAP);
+                    }
+                }
+                pattern.push(800);
+
+                let step = 0;
+                const runStep = () => {
+                    if (!this.isLooping || !isPlaying) {
+                        this.stopSound();
+                        return;
+                    }
+                    const dur = pattern[step];
+                    const isBeep = (step % 2 === 0);
+
+                    if (isBeep) {
+                        const now = this.ctx ? this.ctx.currentTime : 0;
+                        if (this.gainNode) {
+                            this.gainNode.gain.cancelScheduledValues(now);
+                            this.gainNode.gain.setValueAtTime(this.targetVolume, now);
+                        }
+                    } else {
+                        const now = this.ctx ? this.ctx.currentTime : 0;
+                        if (this.gainNode) {
+                            this.gainNode.gain.cancelScheduledValues(now);
+                            this.gainNode.gain.setValueAtTime(0, now);
+                        }
+                    }
+
+                    step = (step + 1) % pattern.length;
+                    this.seqTimer = setTimeout(runStep, dur);
+                };
+                runStep();
+            }
+            stopSound() {
+                this.isLooping = false;
+                clearTimeout(this.seqTimer);
+                if (this.gainNode && this.ctx) {
+                    this.gainNode.gain.cancelScheduledValues(this.ctx.currentTime);
+                    this.gainNode.gain.setValueAtTime(0, this.ctx.currentTime);
+                }
+            }
+        }
+        const audioSys = new ARDFMorseAudio();
+
+        document.getElementById('btn-audio-toggle').addEventListener('click', () => {
+            audioSys.init();
+            const isMuted = audioSys.toggleMute();
+            const btn = document.getElementById('btn-audio-toggle');
+            btn.textContent = isMuted ? '🔇' : '🔊';
+            btn.classList.toggle('muted', isMuted);
+        });
+
+        // ==============================================================
+        // [송신기 위치 지정 & 0px 정밀 앵커]
+        // ==============================================================
+        const txGrid = document.getElementById('tx-dynamic-grid');
+        let activeTxKey = null;
+        let txMarkers = {};
+        const txListBox = document.getElementById('tx-list-box');
+        const txSimBadge = document.getElementById('tx-sim-badge');
+        const txSimSummary = document.getElementById('tx-sim-summary');
+        const guideBanner = document.getElementById('guide-banner');
+        const guideText = document.getElementById('guide-text');
+
+        const TX_CONFIGS = [
+            { key: 'S', label: '△ 스타트' },
+            { key: '1', label: 'TX 1' }, { key: '2', label: 'TX 2' },
+            { key: '3', label: 'TX 3' }, { key: '4', label: 'TX 4' },
+            { key: '5', label: 'TX 5' },
+            { key: 'B', label: '비컨(B)' },
+            { key: 'F', label: '◎ 피니시' }
+        ];
+
+        function getActiveTxKeys() {
+            return Object.keys(txMarkers)
+                .filter(k => k !== 'S' && k !== 'F' && k !== 'B')
+                .sort((a, b) => parseInt(a) - parseInt(b));
+        }
+
+        function updateTxSimBadge() {
+            const keys = getActiveTxKeys();
+            if (keys.length === 0) {
+                txSimBadge.className = 'badge-sim-wait';
+                txSimBadge.textContent = '시뮬레이션 대기';
+                txSimSummary.style.display = 'none';
+            } else {
+                txSimBadge.className = 'badge-sim-active';
+                txSimBadge.textContent = `송신기 ${keys.length}기 배치됨`;
+                txSimSummary.style.display = 'block';
+                const seqStr = keys.map(k => `TX ${k}`).join(' ➔ ');
+                txSimSummary.innerHTML = `📡 <b>송신 순서:</b> ${seqStr}`;
+            }
+            updatePunchHudStrip();
+            buildCourseAndRunner();
+        }
+
+        // 하단 플레이어 바 펀칭 현황 HUD
+        function updatePunchHudStrip() {
+            const strip = document.getElementById('punch-hud-strip');
+            strip.innerHTML = '';
+            const keys = getActiveTxKeys();
+            keys.forEach(k => {
+                const item = txMarkers[k];
+                const span = document.createElement('span');
+                span.className = 'punch-hud-item' + (item && item.isPunched ? ' punched' : '');
+                span.id = `hud-tx-${k}`;
+                span.textContent = (item && item.isPunched ? `✓${k}` : `${k}`);
+                strip.appendChild(span);
+            });
+        }
+
+        function renderTxGrid() {
+            txGrid.innerHTML = '';
+            TX_CONFIGS.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-tx-pick';
+                btn.setAttribute('data-tx', item.key);
+                btn.textContent = item.label;
+                btn.addEventListener('click', () => {
+                    if (activeTxKey === item.key) {
+                        cancelGuide();
+                        return;
+                    }
+                    activeTxKey = item.key;
+                    document.querySelectorAll('.btn-tx-pick').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+
+                    guideText.textContent = `[${item.label}] 위치를 지도에서 콕 찍으세요 (배치 후 자유롭게 드래그 가능)`;
+                    guideBanner.style.display = 'flex';
+                    map.getCanvas().style.cursor = 'crosshair';
+                });
+                txGrid.appendChild(btn);
+            });
+        }
+        renderTxGrid();
+
+        function cancelGuide() {
+            activeTxKey = null;
+            guideBanner.style.display = 'none';
+            map.getCanvas().style.cursor = '';
+            document.querySelectorAll('.btn-tx-pick').forEach(b => b.classList.remove('active'));
+        }
+        document.getElementById('btn-cancel-guide').addEventListener('click', cancelGuide);
+
+        function setTxPosition(key, lng, lat) {
+            if (txMarkers[key]) txMarkers[key].marker.remove();
+
+            const anchorWrap = document.createElement('div');
+            anchorWrap.className = 'marker-anchor-wrap';
+
+            let innerEl;
+            if (key === 'S') {
+                innerEl = document.createElement('div');
+                innerEl.className = 'iof-start-marker';
+                innerEl.innerHTML = '<div class="iof-start-marker-inner"></div>';
+                innerEl.title = '출발점 (Start)';
+            } else if (key === 'F') {
+                innerEl = document.createElement('div');
+                innerEl.className = 'iof-finish-marker';
+                innerEl.innerHTML = '<div class="iof-finish-marker-inner"></div>';
+                innerEl.title = '도착점 (Finish)';
+            } else {
+                innerEl = document.createElement('div');
+                innerEl.className = 'iof-tx-marker';
+                innerEl.textContent = key;
+                innerEl.title = `송신기 TX ${key}`;
+            }
+            anchorWrap.appendChild(innerEl);
+
+            const marker = new mapboxgl.Marker({ element: anchorWrap, anchor: 'center', draggable: true })
+                .setLngLat([lng, lat])
+                .addTo(map);
+
+            marker.on('dragend', () => {
+                const ll = marker.getLngLat();
+                txMarkers[key].lng = ll.lng;
+                txMarkers[key].lat = ll.lat;
+                renderTxList();
+                updateTxSimBadge();
+            });
+
+            txMarkers[key] = { key, lng, lat, marker, element: innerEl, isPunched: false, punchTimeMs: null };
+            renderTxList();
+            updateTxSimBadge();
+        }
+
+        function removeTx(key) {
+            if (txMarkers[key]) {
+                txMarkers[key].marker.remove();
+                delete txMarkers[key];
+                renderTxList();
+                updateTxSimBadge();
+            }
+        }
+
+        function renderTxList() {
+            txListBox.innerHTML = '';
+            Object.values(txMarkers).forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'tx-list-item';
+                const label = item.key === 'S' ? '△ 스타트' : (item.key === 'F' ? '◎ 피니시' : `TX ${item.key}`);
+                row.innerHTML = `
+                    <span><b>${label}</b> : ${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}</span>
+                    <button class="btn-del-item" onclick="removeTx('${item.key}')">✕</button>
+                `;
+                txListBox.appendChild(row);
+            });
+        }
+        window.removeTx = removeTx;
+
+        map.on('click', (e) => {
+            if (activeTxKey) {
+                setTxPosition(activeTxKey, e.lngLat.lng, e.lngLat.lat);
+                cancelGuide();
+            }
+        });
+
+        document.getElementById('btn-tx-manual').addEventListener('click', () => {
+            const val = document.getElementById('tx-manual-input').value.trim();
+            if (!val) return;
+            const parts = val.split(',').map(s => parseFloat(s.trim()));
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                let targetKey = activeTxKey;
+                if (!targetKey) {
+                    const keys = ['1', '2', '3', '4', '5'];
+                    targetKey = keys.find(k => !txMarkers[k]) || '1';
+                }
+                setTxPosition(targetKey, parts[1], parts[0]);
+                document.getElementById('tx-manual-input').value = '';
+                cancelGuide();
+            } else {
+                alert('위도, 경도 형식으로 입력해 주세요. (예: 35.8514, 127.1364)');
+            }
+        });
+
+        function executeSearch() {
+            const query = document.getElementById('map-search-input').value.trim();
+            if (!query) return;
+
+            if (query.includes(',')) {
+                const parts = query.split(',').map(s => parseFloat(s.trim()));
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    map.flyTo({ center: [parts[1], parts[0]], zoom: 15, duration: 1200 });
+                    return;
+                }
+            }
+
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&country=KR&language=ko`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        map.flyTo({ center: data.features[0].center, zoom: 15, duration: 1200 });
+                    } else {
+                        alert('검색 결과를 찾을 수 없습니다.');
+                    }
+                })
+                .catch(() => alert('검색 중 오류가 발생했습니다.'));
+        }
+
+        document.getElementById('btn-map-search').addEventListener('click', executeSearch);
+        document.getElementById('map-search-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') executeSearch();
+        });
+
+        // ==============================================================
+        // [ITU-R P.526 나이프 에지 회절 정밀 연산기]
+        // ==============================================================
+        function calculateKnifeEdgeDiffraction(p1Lon, p1Lat, p1Ele, p2Lon, p2Lat, p2Ele, lambda) {
+            const z1 = p1Ele + 1.5;
+            const z2 = p2Ele + 1.0;
+            const totalDistM = calculateDistance(p1Lat, p1Lon, p2Lat, p2Lon) * 1000;
+            const sampleCount = Math.max(10, Math.min(30, Math.floor(totalDistM / 25)));
+
+            let maxH = -Infinity;
+            let peakD1 = totalDistM * 0.5;
+            let peakD2 = totalDistM * 0.5;
+
+            for (let i = 1; i < sampleCount; i++) {
+                const t = i / sampleCount;
+                const sampleLon = p1Lon + (p2Lon - p1Lon) * t;
+                const sampleLat = p1Lat + (p2Lat - p1Lat) * t;
+                const expectedLosZ = z1 + (z2 - z1) * t;
+
+                let groundElev = null;
+                if (map.queryTerrainElevation) {
+                    groundElev = map.queryTerrainElevation([sampleLon, sampleLat]);
+                }
+                if (groundElev !== null) {
+                    const h = groundElev - expectedLosZ;
+                    if (h > maxH) {
+                        maxH = h;
+                        peakD1 = totalDistM * t;
+                        peakD2 = totalDistM * (1 - t);
+                    }
+                }
+            }
+
+            if (maxH <= 0.5) {
+                return { isLOS: true, lossDb: 0, gainRatio: 1.0, maxH: 0 };
+            }
+
+            const d1 = Math.max(10, peakD1);
+            const d2 = Math.max(10, peakD2);
+            const v = maxH * Math.sqrt((2 * (d1 + d2)) / (lambda * d1 * d2));
+
+            let lossDb = 0;
+            if (v > -0.7) {
+                const term = Math.sqrt(Math.pow(v - 0.1, 2) + 1) + (v - 0.1);
+                lossDb = 6.9 + 20 * Math.log10(Math.max(0.01, term));
+            }
+
+            const gainRatio = Math.max(0.015, Math.pow(10, -lossDb / 20));
+
+            return {
+                isLOS: false,
+                lossDb: Math.round(lossDb),
+                gainRatio: gainRatio,
+                maxH: Math.round(maxH)
+            };
+        }
+
+        // ==============================================================
+        // [시뮬레이션 러너 & 전파 링크버짓 연산 엔진]
+        // ==============================================================
+        let runner = null;
+        let isPlaying = false;
+        let animId = null;
+        let simDurationMs = 0;
+        let currentSimMs = 0;
+        let totalCourseDistKm = 0;
+
+        let bearingLines = []; 
+        let bearingTails = []; 
+        let recordedTxBearings = {}; 
+        let firstTargetKey = null;
+        let punchSequence = [];
+
+        const playerBar = document.getElementById('player-bar');
+        const btnPlay = document.getElementById('btn-play');
+        const timeline = document.getElementById('timeline');
+        const simTimeText = document.getElementById('sim-time-text');
+        const playerTxBadge = document.getElementById('player-tx-badge');
+        const speedSelect = document.getElementById('speed-select');
+
+        function calculateOptimalTacticalOrder(startPt, txList, endPt) {
+            if (txList.length <= 1) return txList;
+            function permute(arr) {
+                if (arr.length <= 1) return [arr];
+                let res = [];
+                for (let i = 0; i < arr.length; i++) {
+                    let rest = permute(arr.slice(0, i).concat(arr.slice(i + 1)));
+                    for (let r of rest) res.push([arr[i]].concat(r));
+                }
+                return res;
+            }
+            const allPerms = permute(txList);
+            let bestPerm = txList;
+            let minDistance = Infinity;
+
+            allPerms.forEach(perm => {
+                let dist = calculateDistance(startPt.lat, startPt.lng, perm[0].lat, perm[0].lng);
+                for (let i = 0; i < perm.length - 1; i++) {
+                    dist += calculateDistance(perm[i].lat, perm[i].lng, perm[i+1].lat, perm[i+1].lng);
+                }
+                if (endPt) dist += calculateDistance(perm[perm.length - 1].lat, perm[perm.length - 1].lng, endPt.lat, endPt.lng);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    bestPerm = perm;
+                }
+            });
+            return bestPerm;
+        }
+
+        async function buildCourseAndRunner() {
+            const keys = getActiveTxKeys();
+            const hasStart = !!txMarkers['S'];
+            const hasFinish = !!txMarkers['F'];
+            const hasBeacon = !!txMarkers['B'];
+
+            if (keys.length === 0 && !hasStart) {
+                if (runner) runner.marker.remove();
+                runner = null;
+                playerBar.style.display = 'none';
+                clearLayers();
+                return;
+            }
+
+            const startPt = hasStart ? txMarkers['S'] : txMarkers[keys[0]];
+            const rawTargets = keys.filter(k => (!hasStart ? k !== keys[0] : true)).map(k => txMarkers[k]);
+            const finalBeaconOrFinish = hasBeacon ? txMarkers['B'] : (hasFinish ? txMarkers['F'] : null);
+
+            const sortedTargets = calculateOptimalTacticalOrder(startPt, rawTargets, finalBeaconOrFinish);
+            firstTargetKey = sortedTargets.length > 0 ? sortedTargets[0].key : null;
+
+            const waypoints = [startPt, ...sortedTargets];
+            if (hasBeacon && !waypoints.includes(txMarkers['B'])) waypoints.push(txMarkers['B']);
+            if (hasFinish && !waypoints.includes(txMarkers['F'])) waypoints.push(txMarkers['F']);
+
+            if (waypoints.length < 2) {
+                playerBar.style.display = 'none';
+                clearLayers();
+                return;
+            }
+
+            let routeCoords = [];
+            try {
+                const coordsParam = waypoints.map(p => `${p.lng},${p.lat}`).join(';');
+                const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${coordsParam}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.routes && data.routes.length > 0 && data.routes[0].geometry.coordinates.length > 1) {
+                    routeCoords = data.routes[0].geometry.coordinates;
+                } else {
+                    routeCoords = generateFallbackLinearCoords(waypoints);
+                }
+            } catch (err) {
+                routeCoords = generateFallbackLinearCoords(waypoints);
+            }
+
+            setupRunnerWithTrail(routeCoords);
+        }
+
+        function generateFallbackLinearCoords(waypoints) {
+            const coords = [];
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                const p1 = waypoints[i], p2 = waypoints[i+1];
+                const steps = 30;
+                for (let s = 0; s < steps; s++) {
+                    const r = s / steps;
+                    coords.push([p1.lng + (p2.lng - p1.lng) * r, p1.lat + (p2.lat - p1.lat) * r]);
+                }
+            }
+            coords.push([waypoints[waypoints.length - 1].lng, waypoints[waypoints.length - 1].lat]);
+            return coords;
+        }
+
+        function setupRunnerWithTrail(routeCoords) {
+            totalCourseDistKm = 0;
+            const points = [];
+            for (let i = 0; i < routeCoords.length; i++) {
+                const cLng = routeCoords[i][0], cLat = routeCoords[i][1];
+                let ele = 100;
+                if (map.queryTerrainElevation) {
+                    const terr = map.queryTerrainElevation([cLng, cLat]);
+                    if (terr !== null) ele = terr;
+                }
+                if (points.length > 0) {
+                    const lastP = points[points.length - 1];
+                    totalCourseDistKm += calculateDistance(lastP.lat, lastP.lon, cLat, cLng);
+                }
+                points.push({ lon: cLng, lat: cLat, ele });
+            }
+
+            map.getSource('course-track-source').setData({
+                'type': 'FeatureCollection',
+                'features': [{
+                    'type': 'Feature',
+                    'geometry': { 'type': 'LineString', 'coordinates': routeCoords }
+                }]
+            });
+
+            simDurationMs = Math.max(10, Math.round(totalCourseDistKm * 6)) * 60 * 1000;
+            currentSimMs = 0;
+            bearingLines = [];
+            bearingTails = [];
+            recordedTxBearings = {};
+            punchSequence = [];
+            refreshBearingMap();
+
+            if (runner) runner.marker.remove();
+
+            const runnerAnchor = document.createElement('div');
+            runnerAnchor.className = 'runner-anchor-wrap';
+
+            const runnerEl = document.createElement('div');
+            runnerEl.className = 'runner-marker';
+            runnerEl.innerHTML = '<div class="runner-marker-arrow"></div>';
+            runnerAnchor.appendChild(runnerEl);
+
+            const badgeEl = document.createElement('div');
+            badgeEl.className = 'runner-tactical-badge';
+            runnerAnchor.appendChild(badgeEl);
+
+            const rMarker = new mapboxgl.Marker({ element: runnerAnchor, anchor: 'center' })
+                .setLngLat([points[0].lon, points[0].lat])
+                .addTo(map);
+
+            runner = {
+                marker: rMarker,
+                element: runnerEl,
+                arrow: runnerEl.querySelector('.runner-marker-arrow'),
+                badge: badgeEl,
+                points: points
+            };
+
+            playerBar.style.display = 'flex';
+            resetBlindState(false);
+            updateSimulationFrame(0);
+        }
+
+        function clearLayers() {
+            if (map.getSource('course-track-source')) map.getSource('course-track-source').setData({ 'type': 'FeatureCollection', 'features': [] });
+            bearingLines = [];
+            bearingTails = [];
+            recordedTxBearings = {};
+            punchSequence = [];
+            refreshBearingMap();
+        }
+
+        function refreshBearingMap() {
+            if (map.getSource('bearing-history-source')) {
+                map.getSource('bearing-history-source').setData({ 'type': 'FeatureCollection', 'features': bearingLines });
+            }
+            if (map.getSource('bearing-tails-source')) {
+                map.getSource('bearing-tails-source').setData({ 'type': 'FeatureCollection', 'features': bearingTails });
+            }
+        }
+
+        function resetBlindState(isRacing) {
+            Object.keys(txMarkers).forEach(k => {
+                const item = txMarkers[k];
+                if (k !== 'S' && k !== 'F') {
+                    item.isPunched = false;
+                    item.punchTimeMs = null;
+                    item.element.textContent = k;
+                    if (isRacing) {
+                        item.element.classList.remove('tx-punched');
+                        item.element.classList.add('tx-blind-hidden');
+                    } else {
+                        item.element.classList.remove('tx-blind-hidden', 'tx-punched');
+                    }
+                }
+            });
+            updatePunchHudStrip();
+        }
+
+        function getRunnerPosAt(progress) {
+            const pts = runner.points;
+            const totalSteps = pts.length - 1;
+            const exactIdx = progress * totalSteps;
+            const i1 = Math.floor(exactIdx);
+            const i2 = Math.min(totalSteps, i1 + 1);
+            const ratio = exactIdx - i1;
+
+            const p1 = pts[i1], p2 = pts[i2];
+            const lon = p1.lon + (p2.lon - p1.lon) * ratio;
+            const lat = p1.lat + (p2.lat - p1.lat) * ratio;
+            const ele = p1.ele + (p2.ele - p1.ele) * ratio;
+            const bearing = getBearing(p1.lat, p1.lon, p2.lat, p2.lon);
+
+            return { lon, lat, ele, bearing };
+        }
+
+        function updateSimulationFrame(timeMs) {
+            if (!runner) return;
+
+            const progress = Math.min(1.0, Math.max(0, timeMs / Math.max(1, simDurationMs)));
+            const pos = getRunnerPosAt(progress);
+            runner.marker.setLngLat([pos.lon, pos.lat]);
+            runner.arrow.style.transform = `rotate(${pos.bearing}deg)`;
+
+            const totalMinutes = Math.floor(timeMs / 60000);
+            const cycleMin = (totalMinutes % 5) + 1;
+            const currentTxKey = String(cycleMin);
+            const activeTx = txMarkers[currentTxKey];
+
+            let badgeText = null;
+            let badgeBorder = '#f39c12';
+
+            // ==============================================================
+            // [모든 송신기 독립 전수 펀칭 감지 & 지도 선명 표시]
+            // ==============================================================
+            Object.values(txMarkers).forEach(tx => {
+                if (tx.key !== 'S' && tx.key !== 'F') {
+                    const distToTxM = calculateDistance(pos.lat, pos.lon, tx.lat, tx.lng) * 1000;
+                    
+                    // 75m 반경 도달 시 (오솔길 우회 스냅 보정)
+                    if (distToTxM <= 75 && isPlaying) {
+                        if (!tx.isPunched) {
+                            tx.isPunched = true;
+                            tx.punchTimeMs = timeMs;
+                            tx.element.classList.remove('tx-blind-hidden');
+                            tx.element.classList.add('tx-punched');
+                            tx.element.textContent = `✓${tx.key}`;
+
+                            punchSequence.push({
+                                key: tx.key,
+                                timeMs: timeMs,
+                                morse: MORSE_MAP[tx.key] || 'TX',
+                                distErrorM: Math.round(Math.random() * 8 + 12)
+                            });
+
+                            // 지도 외곽 꼬리표 삭제 및 방위선 톤다운
+                            bearingTails = bearingTails.filter(t => t.properties.label !== tx.key);
+                            bearingLines.forEach(l => {
+                                if (l.properties.tx === tx.key) {
+                                    l.properties.opacity = 0.2;
+                                    l.properties.color = '#7f8c8d';
+                                }
+                            });
+                            refreshBearingMap();
+                            updatePunchHudStrip();
+                        }
+                        badgeText = `✅ TX ${tx.key} PUNCH!`;
+                        badgeBorder = '#2ecc71';
+                    }
+                }
+            });
+
+            // ==============================================================
+            // [현재 송신 중인 폭스(activeTx) 신호 및 링크버짓 계산]
+            // ==============================================================
+            if (activeTx) {
+                const txColor = TX_COLORS[activeTx.key] || '#f39c12';
+                const distKm = calculateDistance(pos.lat, pos.lon, activeTx.lat, activeTx.lng);
+                const distM = Math.round(distKm * 1000);
+                const azimuth = Math.round(getBearing(pos.lat, pos.lon, activeTx.lat, activeTx.lng));
+                const azStr = String(azimuth).padStart(3, '0') + '°';
+                const morseCode = MORSE_MAP[activeTx.key];
+
+                const selectedBand = document.querySelector('input[name="freq-band"]:checked').value;
+                const lambda = selectedBand === '2m' ? 2.07 : 85.71;
+
+                let txEle = 100;
+                if (map.queryTerrainElevation) {
+                    const e = map.queryTerrainElevation([activeTx.lng, activeTx.lat]);
+                    if (e !== null) txEle = e;
+                }
+                const diffResult = calculateKnifeEdgeDiffraction(pos.lon, pos.lat, pos.ele, activeTx.lng, activeTx.lat, txEle, lambda);
+
+                let angleDiff = Math.abs(pos.bearing - azimuth);
+                if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+                let yagiGain = 0.12;
+                if (angleDiff <= 30) yagiGain = 1.0;
+                else if (angleDiff <= 90) yagiGain = 1.0 - (0.75 * ((angleDiff - 30) / 60));
+
+                const raceType = raceTypeSelect.value;
+                let txPowerFactor = 1.0;
+                let isFoxoringCutoff = false;
+
+                if (raceType === 'classic') {
+                    txPowerFactor = (selectedBand === '2m') ? 1.0 : 1.2;
+                } else if (raceType === 'sprint') {
+                    txPowerFactor = 0.5;
+                } else if (raceType === 'foxoring') {
+                    if (distM > 250) {
+                        isFoxoringCutoff = true;
+                        txPowerFactor = 0;
+                    } else if (distM <= 30) {
+                        txPowerFactor = 0.01 * (1 + (30 - distM) / 5);
+                    } else {
+                        txPowerFactor = 0.01 * Math.pow((250 - distM) / 220, 3);
+                    }
+                }
+
+                let distGain = 1 / (1 + Math.pow(distM / 280, 1.2));
+                let finalAudioGain = 0;
+
+                if (!isFoxoringCutoff) {
+                    finalAudioGain = txPowerFactor * distGain * yagiGain * diffResult.gainRatio;
+                }
+
+                if (isPlaying) {
+                    audioSys.startMorseLoop(activeTx.key);
+                    audioSys.setTargetVolume(finalAudioGain);
+                }
+
+                if (!recordedTxBearings[activeTx.key]) recordedTxBearings[activeTx.key] = [];
+                const history = recordedTxBearings[activeTx.key];
+
+                let canRecordBearing = false;
+                if (isPlaying && !activeTx.isPunched && history.length < 2 && !isFoxoringCutoff) {
+                    if (history.length === 0) canRecordBearing = true;
+                    else if (history.length === 1) {
+                        const prev = history[0];
+                        let diff = Math.abs(azimuth - prev.azimuth);
+                        if (diff > 180) diff = 360 - diff;
+                        if (diff >= 25) canRecordBearing = true;
+                    }
+                }
+
+                if (canRecordBearing) {
+                    history.push({ lat: pos.lat, lon: pos.lon, azimuth: azimuth });
+                    const rad = azimuth * Math.PI / 180;
+                    const endLat = pos.lat + (1.3 / 111) * Math.cos(rad);
+                    const endLon = pos.lon + (1.3 / (111 * Math.cos(pos.lat * Math.PI / 180))) * Math.sin(rad);
+
+                    bearingLines.push({
+                        'type': 'Feature',
+                        'properties': { 'tx': activeTx.key, 'color': txColor, 'opacity': 0.85 },
+                        'geometry': { 'type': 'LineString', 'coordinates': [[pos.lon, pos.lat], [endLon, endLat]] }
+                    });
+
+                    bearingTails.push({
+                        'type': 'Feature',
+                        'properties': { 'label': activeTx.key, 'color': txColor },
+                        'geometry': { 'type': 'Point', 'coordinates': [endLon, endLat] }
+                    });
+                    refreshBearingMap();
+
+                    if (!badgeText) {
+                        badgeText = `📡 TX ${activeTx.key} (${azStr})`;
+                        badgeBorder = '#3498db';
+                    }
+                }
+
+                if (!badgeText) {
+                    if (isFoxoringCutoff) {
+                        badgeText = `🔇 [250m 차단 (무음)]`;
+                        badgeBorder = '#7f8c8d';
+                    } else if (!diffResult.isLOS) {
+                        badgeText = `⚠️ [능선 차폐 -${diffResult.lossDb}dB]`;
+                        badgeBorder = '#e74c3c';
+                    } else if (distM <= 120 && !activeTx.isPunched) {
+                        badgeText = `⚡ ATTACK`;
+                        badgeBorder = '#e67e22';
+                    } else if (firstTargetKey && activeTx.key === firstTargetKey && !activeTx.isPunched) {
+                        badgeText = `🎯 TARGET: TX ${firstTargetKey}`;
+                        badgeBorder = '#f1c40f';
+                    }
+                }
+
+                const shadowTag = isFoxoringCutoff ? '🔇250m차단' : (diffResult.isLOS ? '⚡LOS' : `⚠️-${diffResult.lossDb}dB 차폐`);
+                playerTxBadge.innerHTML = `<span style="color: ${txColor};">●</span> TX ${activeTx.key} [${morseCode}] ${shadowTag}`;
+            } else {
+                playerTxBadge.innerHTML = `● TX 대기`;
+                audioSys.stopSound();
+            }
+
+            if (badgeText) {
+                runner.badge.style.display = 'flex';
+                runner.badge.textContent = badgeText;
+                runner.badge.style.borderColor = badgeBorder;
+            } else {
+                runner.badge.style.display = 'none';
+            }
+
+            const sec = Math.floor(timeMs / 1000);
+            const m = String(Math.floor(sec / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            simTimeText.textContent = `${m}:${s}`;
+            timeline.value = Math.round(progress * 1000);
+        }
+
+        // 디브리핑 리포트 팝업
+        function showDebriefingModal() {
+            audioSys.stopSound();
+            const modal = document.getElementById('debrief-modal');
+            const totalSec = Math.floor(simDurationMs / 1000);
+            const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+            const s = String(totalSec % 60).padStart(2, '0');
+            document.getElementById('db-time').textContent = `${m}:${s}`;
+            document.getElementById('db-dist').textContent = `${totalCourseDistKm.toFixed(2)} km`;
+
+            const paceSec = totalCourseDistKm > 0 ? (totalSec / totalCourseDistKm) : 0;
+            const pm = Math.floor(paceSec / 60);
+            const ps = String(Math.floor(paceSec % 60)).padStart(2, '0');
+            document.getElementById('db-pace').textContent = `${pm}'${ps}" /km`;
+
+            const race = raceTypeSelect.value.toUpperCase();
+            const selectedBand = document.querySelector('input[name="freq-band"]:checked').value;
+            const bandStr = selectedBand === '2m' ? '144MHz' : '3.5MHz';
+            document.getElementById('db-band').textContent = `${race} / ${bandStr}`;
+
+            const tbody = document.getElementById('db-split-body');
+            tbody.innerHTML = '';
+            let lastPunchTime = 0;
+
+            punchSequence.forEach((item, idx) => {
+                const pSec = Math.floor(item.timeMs / 1000);
+                const splitSec = Math.max(0, pSec - lastPunchTime);
+                lastPunchTime = pSec;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td><b>TX ${item.key}</b> [${item.morse}]</td>
+                    <td>${String(Math.floor(pSec/60)).padStart(2,'0')}:${String(pSec%60).padStart(2,'0')}</td>
+                    <td style="color:#2ecc71;">+${String(Math.floor(splitSec/60)).padStart(2,'0')}:${String(splitSec%60).padStart(2,'0')}</td>
+                    <td style="color:#f1c40f;">±${item.distErrorM}m</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            modal.style.display = 'flex';
+        }
+
+        document.getElementById('btn-close-debrief').addEventListener('click', () => {
+            document.getElementById('debrief-modal').style.display = 'none';
+        });
+
+        function playLoop(lastTs) {
+            function loop(now) {
+                if (!isPlaying) return;
+                const dt = (now - lastTs) / 1000;
+                lastTs = now;
+
+                const speed = parseFloat(speedSelect.value);
+                currentSimMs += dt * 1000 * speed;
+
+                if (currentSimMs >= simDurationMs) {
+                    currentSimMs = simDurationMs;
+                    updateSimulationFrame(currentSimMs);
+                    pauseTrack();
+                    showDebriefingModal();
+                    return;
+                }
+
+                updateSimulationFrame(currentSimMs);
+                animId = requestAnimationFrame(loop);
+            }
+            animId = requestAnimationFrame(loop);
+        }
+
+        function playTrack() {
+            audioSys.init();
+            isPlaying = true;
+            btnPlay.textContent = '⏸';
+            document.getElementById('debrief-modal').style.display = 'none';
+            resetBlindState(true);
+            playLoop(performance.now());
+        }
+
+        function pauseTrack() {
+            isPlaying = false;
+            btnPlay.textContent = '▶';
+            audioSys.stopSound();
+            if (animId) cancelAnimationFrame(animId);
+        }
+
+        btnPlay.addEventListener('click', () => {
+            if (!runner) return;
+            if (isPlaying) pauseTrack();
+            else {
+                if (currentSimMs >= simDurationMs) {
+                    currentSimMs = 0;
+                    bearingLines = [];
+                    bearingTails = [];
+                    recordedTxBearings = {};
+                    punchSequence = [];
+                    refreshBearingMap();
+                }
+                playTrack();
+            }
+        });
+
+        // 타임라인 앞뒤 탐색 시 찾은 폭스 상태 동기화
+        timeline.addEventListener('input', (e) => {
+            if (!runner) return;
+            const pct = parseFloat(e.target.value) / 1000;
+            currentSimMs = pct * simDurationMs;
+
+            Object.values(txMarkers).forEach(tx => {
+                if (tx.key !== 'S' && tx.key !== 'F') {
+                    if (tx.punchTimeMs && currentSimMs >= tx.punchTimeMs) {
+                        tx.isPunched = true;
+                        tx.element.classList.remove('tx-blind-hidden');
+                        tx.element.classList.add('tx-punched');
+                        tx.element.textContent = `✓${tx.key}`;
+                    } else {
+                        tx.isPunched = false;
+                        tx.element.textContent = tx.key;
+                        tx.element.classList.remove('tx-punched');
+                        tx.element.classList.add('tx-blind-hidden');
+                    }
+                }
+            });
+            updatePunchHudStrip();
+            updateSimulationFrame(currentSimMs);
+        });
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function getBearing(startLat, startLng, destLat, destLng) {
+            const y = Math.sin((destLng - startLng) * Math.PI / 180) * Math.cos(destLat * Math.PI / 180);
+            const x = Math.cos(startLat * Math.PI / 180) * Math.sin(destLat * Math.PI / 180) -
+                      Math.sin(startLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) * Math.cos((destLng - startLng) * Math.PI / 180);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+    </script>
+</body>
+</html>
