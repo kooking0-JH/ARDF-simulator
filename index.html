@@ -2,7 +2,6 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <!-- 모바일 정배율 뷰포트 설정 및 가상 키보드 지도 압축 방지 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=overlays-content">
     <title>ARDF 2D 코스 시뮬레이터</title>
     <!-- Mapbox GL JS -->
@@ -15,7 +14,7 @@
             font-family: '맑은 고딕', sans-serif; 
             display: flex; 
             height: 100vh; 
-            height: 100dvh; /* 모바일 브라우저 주소창/하단 툴바 변동 동적 반영 */
+            height: 100dvh;
             overflow: hidden; 
             background: #1a252f; 
         }
@@ -142,7 +141,6 @@
         .btn-tx-pick:hover { background: #34495e; color: #f1c40f; }
         .btn-tx-pick.active { background: #8e44ad; color: #fff; border-color: #9b59b6; box-shadow: 0 0 8px rgba(155,89,182,0.8); }
 
-        /* 송신기 리스트: 축소 및 내부 스크롤 격리 (부모 스크롤 먹통 방지) */
         #tx-list-box { 
             max-height: 110px; 
             overflow-y: auto; 
@@ -175,7 +173,6 @@
             border-radius: 12px; cursor: pointer; font-size: 0.78rem; font-weight: bold; flex-shrink: 0;
         }
 
-        /* 0x0 앵커 래퍼 & IOF 표준 마커 (터치 히트박스 확장) */
         .marker-anchor-wrap { width: 0 !important; height: 0 !important; position: relative !important; cursor: grab; }
         .marker-anchor-wrap:active { cursor: grabbing; }
 
@@ -186,7 +183,6 @@
             display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.7);
             user-select: none; pointer-events: auto; transition: opacity 0.2s, transform 0.2s;
         }
-        /* 모바일 터치 타깃 44px 확장 가상 영역 */
         .iof-tx-marker::after, .iof-start-marker::after, .iof-finish-marker::after {
             content: ''; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); width: 44px; height: 44px;
@@ -225,7 +221,6 @@
             width: 14px; height: 14px; border-radius: 50%; background: #8e44ad; border: 2px solid #ffffff;
         }
 
-        /* 러너 마커 & 캡슐 배지 */
         .runner-anchor-wrap { width: 0 !important; height: 0 !important; position: relative !important; }
         .runner-marker {
             position: absolute; top: 0; left: 0; transform: translate(-50%, -50%);
@@ -247,7 +242,6 @@
             letter-spacing: -0.2px;
         }
 
-        /* 2단 컴팩트 플레이어 컨트롤 바 */
         #player-bar {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(33, 47, 61, 0.96); backdrop-filter: blur(8px);
@@ -297,7 +291,6 @@
             border-radius: 4px; padding: 4px 6px; font-size: 0.78rem; cursor: pointer; flex-shrink: 0;
         }
 
-        /* 디브리핑 리포트 모달 */
         #debrief-modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(26, 37, 47, 0.98); border: 2px solid #2ecc71; border-radius: 12px;
@@ -320,14 +313,13 @@
         }
         #btn-close-debrief:hover { background: #2ecc71; }
 
-        /* 모바일 및 태블릿 미디어 쿼리 (화면 폭 1024px 이하 최적화) */
         @media (max-width: 1024px) {
             #sidebar {
                 position: fixed; top: 0; left: 0;
                 width: 85vw; min-width: unset; max-width: 320px;
                 height: 100vh;
                 height: 100dvh;
-                padding-bottom: 70px; /* 송신기 추가 시 하단 슬라이더 잘림 방지 안전 여백 */
+                padding-bottom: 70px;
                 -webkit-overflow-scrolling: touch;
             }
             #sidebar.collapsed { margin-left: -100vw; }
@@ -359,7 +351,6 @@
             <button id="btn-sidebar-close" title="사이드바 닫기 (단축키: [)">✕</button>
         </div>
         
-        <!-- 1. 경기 종목 & 주파수 대역 -->
         <div class="control-group">
             <label class="section-title">1. 경기 종목 & 주파수 대역</label>
             <select id="race-type" style="margin-bottom: 8px;">
@@ -380,7 +371,6 @@
             </div>
         </div>
 
-        <!-- 2. 경기 지도 오버레이 (카메라 촬영 및 갤러리 지원) -->
         <div class="control-group">
             <label class="section-title" for="map-upload">2. 경기 지도 오버레이</label>
             <input type="file" id="map-upload" accept="image/*">
@@ -391,7 +381,6 @@
             </div>
         </div>
 
-        <!-- 3. 송신기(TX) 위치 지정 -->
         <div class="control-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <label class="section-title" style="margin-bottom: 0;">3. 송신기(TX) 위치 지정</label>
@@ -412,7 +401,6 @@
             <div id="tx-list-box"></div>
         </div>
 
-        <!-- 4. 2D 지형 음영 입체감 (기본 디폴트 20% 설정) -->
         <div class="control-group">
             <label class="section-title">4. 2D 지형 음영 입체감</label>
             <div class="slider-wrap">
@@ -445,7 +433,6 @@
             <button id="btn-cancel-guide">취소</button>
         </div>
 
-        <!-- 2단 컴팩트 플레이어 컨트롤 바 -->
         <div id="player-bar">
             <div class="player-row-top">
                 <span id="sim-time-text">00:00</span>
@@ -466,7 +453,6 @@
             </div>
         </div>
 
-        <!-- 경기 종료 디브리핑 리포트 모달 -->
         <div id="debrief-modal">
             <div class="debrief-header">
                 <h3>🏁 경기 분석 및 디브리핑 리포트</h3>
@@ -553,7 +539,7 @@
             });
             map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.0 });
 
-            // 2D 지형 음영 입체감: 기본 디폴트 20%(0.2) 적용
+            // 1. 지형 음영 레이어
             map.addLayer({
                 'id': 'terrain-hillshade',
                 'type': 'hillshade',
@@ -566,18 +552,26 @@
                 }
             });
 
-            map.addSource('satellite-source', {'type': 'raster', 'url': 'mapbox://mapbox.satellite', 'tileSize': 512 }); 
-map.addLayer({
-  'id': 'satellite-layer',
-  'type': 'raster',
-  'source': 'satellite-source',
-  'paint': {
-    'raster-opacity': 0, // 기본 0으로 설정해 백그라운드 사전 다운로드(캐싱) 유도
-    'raster-opacity-transition': { 'duration': 250 }, // 0.25초 부드러운 페이드 효과
-    'raster-fade-duration': 0 // 타일 개별 페이드 지연 제거
-  }
-}, 'terrain-hillshade');
+            // 2. 위성 소스 및 레이어 (원래대로 512 규격 복원, hillshade 아래에 배치)
+            map.addSource('satellite-source', {
+                'type': 'raster',
+                'url': 'mapbox://mapbox.satellite',
+                'tileSize': 512
+            });
 
+            map.addLayer({
+                'id': 'satellite-layer',
+                'type': 'raster',
+                'source': 'satellite-source',
+                'layout': { 
+                    'visibility': 'none' 
+                },
+                'paint': { 
+                    'raster-opacity': 0.95 
+                }
+            }, 'terrain-hillshade');
+
+            // 3. 코스 및 방위각 벡터 레이어
             map.addSource('course-track-source', {
                 'type': 'geojson',
                 'data': { 'type': 'FeatureCollection', 'features': [] }
@@ -640,11 +634,14 @@ map.addLayer({
                 },
                 'paint': { 'text-color': '#ffffff' }
             });
+
+            // 화면 로드 시 현재 라디오 버튼 상태와 위성 레이어 강제 일치
+            const isSatInitial = document.getElementById('style-sat').checked;
+            map.setLayoutProperty('satellite-layer', 'visibility', isSatInitial ? 'visible' : 'none');
         });
 
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
 
-        // 사이드바 토글
         const sidebar = document.getElementById('sidebar');
         const btnSidebarClose = document.getElementById('btn-sidebar-close');
         const btnMenuOpen = document.getElementById('btn-menu-open');
@@ -664,12 +661,10 @@ map.addLayer({
             if (e.key === '[' || e.key === ']') toggleSidebar();
         });
 
-        // 모바일 및 태블릿 접속 시 사이드바 기본 닫기 (넓은 지도 뷰 확보)
         if (window.innerWidth <= 1024) {
             toggleSidebar(true);
         }
 
-        // 1번 경기 종목 & 주파수 대역 핸들러
         const raceTypeSelect = document.getElementById('race-type');
         const band2mRadio = document.getElementById('band-2m');
         const band80mRadio = document.getElementById('band-80m');
@@ -710,13 +705,19 @@ map.addLayer({
             }
         });
 
-        document.getElementById('style-switch-wrap').addEventListener('change', (e) => {
-            if (e.target.value === 'topo') {
-                if (map.getLayer('satellite-layer')) map.setLayoutProperty('satellite-layer', 'visibility', 'none');
-            } else if (e.target.value === 'sat') {
-                if (map.getLayer('satellite-layer')) map.setLayoutProperty('satellite-layer', 'visibility', 'visible');
-            }
-        });
+        // [등고 2D] / [위성 2D] 원천 전환 핸들러 (어떤 클릭/터치에도 100% 즉각 반응)
+        function setMapMode(mode) {
+            if (!map.getLayer('satellite-layer')) return;
+            const isSat = (mode === 'sat');
+            map.setLayoutProperty('satellite-layer', 'visibility', isSat ? 'visible' : 'none');
+            document.getElementById('style-sat').checked = isSat;
+            document.getElementById('style-topo').checked = !isSat;
+        }
+
+        document.getElementById('style-topo').addEventListener('change', () => setMapMode('topo'));
+        document.getElementById('style-sat').addEventListener('change', () => setMapMode('sat'));
+        document.querySelector('label[for="style-topo"]').addEventListener('click', () => setMapMode('topo'));
+        document.querySelector('label[for="style-sat"]').addEventListener('click', () => setMapMode('sat'));
 
         // 지도 오버레이
         const mapUploadInput = document.getElementById('map-upload');
@@ -770,9 +771,7 @@ map.addLayer({
             }
         });
 
-        // ==============================================================
-        // Web Audio API 사운드 엔진 (모바일 자동 재생 잠금 해제 대응)
-        // ==============================================================
+        // Web Audio API 사운드 엔진
         class ARDFMorseAudio {
             constructor() {
                 this.ctx = null;
@@ -865,7 +864,6 @@ map.addLayer({
         }
         const audioSys = new ARDFMorseAudio();
 
-        // 모바일 첫 사용자 터치 시 Web Audio 활성화
         function unlockAudioOnFirstGesture() {
             if (audioSys && audioSys.ctx && audioSys.ctx.state === 'suspended') {
                 audioSys.ctx.resume();
@@ -882,9 +880,7 @@ map.addLayer({
             btn.classList.toggle('muted', isMuted);
         });
 
-        // ==============================================================
         // 송신기 위치 지정 & 마커 관리
-        // ==============================================================
         const txGrid = document.getElementById('tx-dynamic-grid');
         let activeTxKey = null;
         let txMarkers = {};
@@ -1071,7 +1067,7 @@ map.addLayer({
             if (query.includes(',')) {
                 const parts = query.split(',').map(s => parseFloat(s.trim()));
                 if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                    map.flyTo({ center: [parts[1], parts[0]], zoom: 15, duration: 1200 });
+                    map.flyTo({ center: [parts[1], parts[0]], zoom: 15, duration: 1000 });
                     return;
                 }
             }
@@ -1081,7 +1077,7 @@ map.addLayer({
                 .then(res => res.json())
                 .then(data => {
                     if (data.features && data.features.length > 0) {
-                        map.flyTo({ center: data.features[0].center, zoom: 15, duration: 1200 });
+                        map.flyTo({ center: data.features[0].center, zoom: 15, duration: 1000 });
                     } else {
                         alert('검색 결과를 찾을 수 없습니다.');
                     }
@@ -1094,9 +1090,7 @@ map.addLayer({
             if (e.key === 'Enter') executeSearch();
         });
 
-        // ==============================================================
         // ITU-R P.526 나이프 에지 회절 연산기
-        // ==============================================================
         function calculateKnifeEdgeDiffraction(p1Lon, p1Lat, p1Ele, p2Lon, p2Lat, p2Ele, lambda) {
             const z1 = p1Ele + 1.5;
             const z2 = p2Ele + 1.0;
@@ -1151,9 +1145,7 @@ map.addLayer({
             };
         }
 
-        // ==============================================================
-        // 시뮬레이션 러너 & 전파 링크버짓 연산 엔진 (모바일 스로틀링 적용)
-        // ==============================================================
+        // 시뮬레이션 러너 & 전파 링크버짓 연산 엔진
         let runner = null;
         let isPlaying = false;
         let animId = null;
@@ -1167,7 +1159,6 @@ map.addLayer({
         let firstTargetKey = null;
         let punchSequence = [];
 
-        // 모바일 CPU 부하 완화를 위한 회절 연산 캐시
         let lastDiffCalcPos = null;
         let cachedDiffResult = null;
         let lastDiffTxKey = null;
@@ -1406,7 +1397,6 @@ map.addLayer({
             let badgeText = null;
             let badgeBorder = '#f39c12';
 
-            // 모든 송신기 펀칭 반경 감지
             Object.values(txMarkers).forEach(tx => {
                 if (tx.key !== 'S' && tx.key !== 'F') {
                     const distToTxM = calculateDistance(pos.lat, pos.lon, tx.lat, tx.lng) * 1000;
@@ -1442,7 +1432,6 @@ map.addLayer({
                 }
             });
 
-            // 현재 송신 중인 폭스 전파 수신음 및 링크버짓 계산
             if (activeTx) {
                 const txColor = TX_COLORS[activeTx.key] || '#f39c12';
                 const distKm = calculateDistance(pos.lat, pos.lon, activeTx.lat, activeTx.lng);
@@ -1454,7 +1443,6 @@ map.addLayer({
                 const selectedBand = document.querySelector('input[name="freq-band"]:checked').value;
                 const lambda = selectedBand === '2m' ? 2.07 : 85.71;
 
-                // 스로틀링된 회절 연산
                 if (!cachedDiffResult || lastDiffTxKey !== activeTx.key || !lastDiffCalcPos || 
                     calculateDistance(pos.lat, pos.lon, lastDiffCalcPos.lat, lastDiffCalcPos.lon) > 0.005) {
                     let txEle = 100;
@@ -1583,7 +1571,6 @@ map.addLayer({
             timeline.value = Math.round(progress * 1000);
         }
 
-        // 디브리핑 리포트 팝업
         function showDebriefingModal() {
             audioSys.stopSound();
             const modal = document.getElementById('debrief-modal');
@@ -1710,7 +1697,7 @@ map.addLayer({
         });
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // 정확도 : 높음
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
