@@ -566,18 +566,17 @@
                 }
             });
 
-            map.addSource('satellite-source', {
-                'type': 'raster',
-                'url': 'mapbox://mapbox.satellite',
-                'tileSize': 512
-            });
-            map.addLayer({
-                'id': 'satellite-layer',
-                'type': 'raster',
-                'source': 'satellite-source',
-                'layout': { 'visibility': 'none' },
-                'paint': { 'raster-opacity': 0.92 }
-            }, 'terrain-hillshade');
+            map.addSource('satellite-source', {'type': 'raster', 'url': 'mapbox://mapbox.satellite', 'tileSize': 512 }); 
+map.addLayer({
+  'id': 'satellite-layer',
+  'type': 'raster',
+  'source': 'satellite-source',
+  'paint': {
+    'raster-opacity': 0, // 기본 0으로 설정해 백그라운드 사전 다운로드(캐싱) 유도
+    'raster-opacity-transition': { 'duration': 250 }, // 0.25초 부드러운 페이드 효과
+    'raster-fade-duration': 0 // 타일 개별 페이드 지연 제거
+  }
+}, 'terrain-hillshade');
 
             map.addSource('course-track-source', {
                 'type': 'geojson',
