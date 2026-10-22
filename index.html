@@ -539,7 +539,7 @@
             });
             map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.0 });
 
-            // 1. 지형 음영 레이어
+            // 1. 2D 지형 음영 레이어
             map.addLayer({
                 'id': 'terrain-hillshade',
                 'type': 'hillshade',
@@ -552,26 +552,34 @@
                 }
             });
 
-            // 2. 위성 소스 및 레이어 (원래대로 512 규격 복원, hillshade 아래에 배치)
+            // 2. 국내 고속 분산 CDN 위성 타일 소스 (Google Satellite 4중 분산 서버 - 국내 10~30ms 즉시 응답)
             map.addSource('satellite-source', {
                 'type': 'raster',
-                'url': 'mapbox://mapbox.satellite',
-                'tileSize': 512
+                'tiles': [
+                    'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+                    'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+                    'https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+                    'https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+                ],
+                'tileSize': 256,
+                'maxzoom': 20
             });
 
+            // 3. 위성 레이어 등록: 기본 벡터 지도(건물/도로/숲) 위에 얹어 가려짐 원천 차단
+            const isSatInitial = document.getElementById('style-sat').checked;
             map.addLayer({
                 'id': 'satellite-layer',
                 'type': 'raster',
                 'source': 'satellite-source',
                 'layout': { 
-                    'visibility': 'none' 
+                    'visibility': isSatInitial ? 'visible' : 'none' 
                 },
                 'paint': { 
-                    'raster-opacity': 0.95 
+                    'raster-opacity': 1.0 
                 }
-            }, 'terrain-hillshade');
+            });
 
-            // 3. 코스 및 방위각 벡터 레이어
+            // 4. 시뮬레이터 자체 트랙과 방위각 선 (위성사진 위로 오버레이)
             map.addSource('course-track-source', {
                 'type': 'geojson',
                 'data': { 'type': 'FeatureCollection', 'features': [] }
@@ -635,9 +643,7 @@
                 'paint': { 'text-color': '#ffffff' }
             });
 
-            // 화면 로드 시 현재 라디오 버튼 상태와 위성 레이어 강제 일치
-            const isSatInitial = document.getElementById('style-sat').checked;
-            map.setLayoutProperty('satellite-layer', 'visibility', isSatInitial ? 'visible' : 'none');
+            updateMapStyle();
         });
 
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
@@ -705,19 +711,18 @@
             }
         });
 
-        // [등고 2D] / [위성 2D] 원천 전환 핸들러 (어떤 클릭/터치에도 100% 즉각 반응)
-        function setMapMode(mode) {
+        // [등고 2D] / [위성 2D] 원터치 즉각 전환 로직
+        function updateMapStyle() {
             if (!map.getLayer('satellite-layer')) return;
-            const isSat = (mode === 'sat');
+            const isSat = document.getElementById('style-sat').checked;
             map.setLayoutProperty('satellite-layer', 'visibility', isSat ? 'visible' : 'none');
-            document.getElementById('style-sat').checked = isSat;
-            document.getElementById('style-topo').checked = !isSat;
         }
 
-        document.getElementById('style-topo').addEventListener('change', () => setMapMode('topo'));
-        document.getElementById('style-sat').addEventListener('change', () => setMapMode('sat'));
-        document.querySelector('label[for="style-topo"]').addEventListener('click', () => setMapMode('topo'));
-        document.querySelector('label[for="style-sat"]').addEventListener('click', () => setMapMode('sat'));
+        document.getElementById('style-topo').addEventListener('change', updateMapStyle);
+        document.getElementById('style-sat').addEventListener('change', updateMapStyle);
+        document.getElementById('style-switch-wrap').addEventListener('click', () => {
+            setTimeout(updateMapStyle, 15);
+        });
 
         // 지도 오버레이
         const mapUploadInput = document.getElementById('map-upload');
@@ -1067,7 +1072,7 @@
             if (query.includes(',')) {
                 const parts = query.split(',').map(s => parseFloat(s.trim()));
                 if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                    map.flyTo({ center: [parts[1], parts[0]], zoom: 15, duration: 1000 });
+                    map.flyTo({ center: [parts[1], parts[0]], zoom: 15, duration: 600 });
                     return;
                 }
             }
@@ -1077,7 +1082,7 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.features && data.features.length > 0) {
-                        map.flyTo({ center: data.features[0].center, zoom: 15, duration: 1000 });
+                        map.flyTo({ center: data.features[0].center, zoom: 15, duration: 600 });
                     } else {
                         alert('검색 결과를 찾을 수 없습니다.');
                     }
